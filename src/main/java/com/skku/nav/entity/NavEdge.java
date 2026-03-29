@@ -34,24 +34,24 @@ public class NavEdge {
     // ── 순방향 (from → to) 비디오 ──────────────────────────────
     @Column(length = 200)
     private String videoFwd;
-    private Double videoFwdStart;
-    private Double videoFwdEnd;
+    private Long videoFwdStart;   // 밀리초
+    private Long videoFwdEnd;     // 밀리초
 
     /** 계단/엘리베이터 진출 클립 (순방향) */
     @Column(length = 200)
     private String videoFwdExit;
-    private Double videoFwdExitStart;
-    private Double videoFwdExitEnd;
+    private Long videoFwdExitStart;  // 밀리초
+    private Long videoFwdExitEnd;    // 밀리초
 
     // ── 역방향 (to → from) 비디오 ──────────────────────────────
     @Column(length = 200)
     private String videoRev;
-    private Double videoRevStart;
-    private Double videoRevEnd;
+    private Long videoRevStart;   // 밀리초
+    private Long videoRevEnd;     // 밀리초
 
     /** 계단/엘리베이터 진출 클립 (역방향) */
     @Column(length = 200)
     private String videoRevExit;
-    private Double videoRevExitStart;
-    private Double videoRevExitEnd;
+    private Long videoRevExitStart;  // 밀리초
+    private Long videoRevExitEnd;    // 밀리초
 }

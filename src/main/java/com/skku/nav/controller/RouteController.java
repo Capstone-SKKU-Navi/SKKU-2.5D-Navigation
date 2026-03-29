@@ -1,6 +1,5 @@
 package com.skku.nav.controller;
 
-import com.skku.nav.dto.RouteRequestDto;
 import com.skku.nav.dto.RouteResponseDto;
 import com.skku.nav.service.RouteService;
 import lombok.RequiredArgsConstructor;
@@ -14,23 +13,16 @@ public class RouteController {
     private final RouteService routeService;
 
     /**
-     * POST /api/route
-     * Body: { "fromNodeId": "node-xxx", "toNodeId": "node-yyy" }
-     */
-    @PostMapping
-    public RouteResponseDto findRoute(@RequestBody RouteRequestDto request) {
-        return routeService.findRoute(request.fromNodeId(), request.toNodeId());
-    }
-
-    /**
-     * GET /api/route?from=node-xxx&to=node-yyy
-     * 프론트엔드 쿼리 파라미터 방식 호환
+     * GET /api/route?from=21223&to=21517
+     *
+     * 프론트엔드 apiClient.ts 의 fetchRoute(from, to) 와 1:1 매핑.
+     * from/to 는 방 번호(label) 문자열.
      */
     @GetMapping
-    public RouteResponseDto findRouteGet(
+    public RouteResponseDto findRoute(
             @RequestParam String from,
             @RequestParam String to
     ) {
-        return routeService.findRoute(from, to);
+        return routeService.findRouteByLabel(from, to);
     }
 }

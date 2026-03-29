@@ -8,17 +8,17 @@ public record EdgeDto(
         String to,
         double weight,
         String videoFwd,
-        Double videoFwdStart,
-        Double videoFwdEnd,
+        Long videoFwdStart,
+        Long videoFwdEnd,
         String videoFwdExit,
-        Double videoFwdExitStart,
-        Double videoFwdExitEnd,
+        Long videoFwdExitStart,
+        Long videoFwdExitEnd,
         String videoRev,
-        Double videoRevStart,
-        Double videoRevEnd,
+        Long videoRevStart,
+        Long videoRevEnd,
         String videoRevExit,
-        Double videoRevExitStart,
-        Double videoRevExitEnd
+        Long videoRevExitStart,
+        Long videoRevExitEnd
 ) {
     public static EdgeDto from(NavEdge edge) {
         return new EdgeDto(

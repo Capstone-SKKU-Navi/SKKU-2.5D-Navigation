@@ -16,6 +16,22 @@
 
 ---
 
+## 역할 및 구조
+
+프론트엔드는 GeoJSON 폴리곤(방·벽·충돌체)과 `graph.json`을 **로컬 정적 파일**에서 직접 로드하며, 경로 탐색도 자체 Dijkstra로 수행한다. 백엔드의 역할은 **방 번호를 입력받아 최단 경로를 계산하고 JSON으로 반환**하는 것 하나다.
+
+```
+프론트엔드 → GET /api/route?from=21223&to=21517 → 백엔드
+                                                      ↓
+                                          DB에서 노드/엣지 로드
+                                                      ↓
+                                          Dijkstra 최단경로 탐색
+                                                      ↓
+                                    { path, edges, totalDistance, estimatedTime }
+```
+
+---
+
 ## 프로젝트 구조
 
 ```
@@ -32,27 +48,29 @@ SKKU_navigation_backend/
     │   ├── config/
     │   │   └── WebConfig.java                 # CORS 설정 (localhost:8082 허용)
     │   ├── entity/
-    │   │   ├── NavNode.java                   # 노드 엔티티 (PostGIS Point)
-    │   │   └── NavEdge.java                   # 엣지 엔티티 (360° 비디오 메타데이터)
+    │   │   ├── NavNode.java                   # 노드 엔티티 (PostGIS Point + clip 타임스탬프)
+    │   │   └── NavEdge.java                   # 엣지 엔티티 (360° 영상 메타데이터, ms 단위)
     │   ├── dto/
     │   │   ├── NodeDto.java
     │   │   ├── EdgeDto.java
     │   │   ├── GraphDto.java
-    │   │   ├── RouteRequestDto.java
-    │   │   └── RouteResponseDto.java
+    │   │   ├── RouteEdgeDto.java              # 프론트엔드 RouteEdge 형식
+    │   │   └── RouteResponseDto.java          # 프론트엔드 RouteResponse 형식
     │   ├── repository/
-    │   │   ├── NavNodeRepository.java         # ST_DWithin 근접 쿼리 포함
+    │   │   ├── NavNodeRepository.java         # label 검색, ST_DWithin 근접 쿼리
     │   │   └── NavEdgeRepository.java
     │   ├── service/
     │   │   ├── GraphService.java              # 인메모리 그래프 캐시 + 인접 리스트
-    │   │   └── RouteService.java              # Dijkstra 경로 탐색
+    │   │   └── RouteService.java              # Dijkstra 경로 탐색 + 방 clip 적용
     │   └── controller/
-    │       ├── NodeController.java
-    │       └── RouteController.java
+    │       ├── NodeController.java            # 관리용 노드 조회 API
+    │       └── RouteController.java           # 핵심 경로 탐색 API
     └── resources/
         ├── application.yml                    # DB 연결 설정
         └── db/migration/
-            └── V1__init_schema.sql            # PostGIS + pgRouting 스키마
+            ├── V1__init_schema.sql            # PostGIS + pgRouting 스키마
+            ├── V2__room_video_timestamps.sql  # 방 노드 clip 타임스탬프 (BIGINT, ms)
+            └── V3__edge_timestamps_to_ms.sql  # 엣지 타임스탬프 DOUBLE → BIGINT(ms) 통일
 ```
 
 ---
@@ -106,14 +124,12 @@ docker compose ps
 Started SkkuNavApplication in X.XXX seconds (process running for X.XXX)
 ```
 
-> Spring Boot가 시작될 때 Flyway가 자동으로 `V1__init_schema.sql`을 실행하여
-> PostGIS, pgRouting 확장 및 테이블을 생성합니다.
+> Spring Boot가 시작될 때 Flyway가 V1~V3 마이그레이션을 순서대로 자동 실행합니다.
 
 ### 3. 동작 확인
 
 ```powershell
-curl http://localhost:8080/api/graph
-# 응답: {"nodes":[],"edges":[]}
+curl "http://localhost:8080/api/route?from=21223&to=21517"
 ```
 
 ---
@@ -122,54 +138,59 @@ curl http://localhost:8080/api/graph
 
 기본 URL: `http://localhost:8080`
 
-### 그래프
+### 핵심 API — 경로 탐색
 
 | Method | URL | 설명 |
 |--------|-----|------|
-| `GET` | `/api/graph` | 전체 노드 + 엣지 반환 (프론트엔드 초기 로드용) |
-| `POST` | `/api/graph/reload` | 인메모리 그래프 캐시 수동 갱신 |
+| `GET` | `/api/route?from={방번호}&to={방번호}` | 방 번호 기반 최단경로 탐색 |
 
-### 노드
+#### 요청 예시
 
-| Method | URL | 설명 |
-|--------|-----|------|
-| `GET` | `/api/nodes` | 전체 노드 목록 |
-| `GET` | `/api/nodes?building=ENG1&level=2` | building, level 필터 |
-| `GET` | `/api/nodes/{id}` | 단일 노드 조회 |
-| `GET` | `/api/nodes/search?q=21223` | 방 번호/이름 검색 |
-| `GET` | `/api/nodes/nearby?lng=126.97&lat=37.29&radius=100&limit=5` | 반경 내 근접 노드 (PostGIS) |
-
-### 경로 탐색
-
-| Method | URL | 설명 |
-|--------|-----|------|
-| `POST` | `/api/route` | Dijkstra 경로 탐색 |
-| `GET` | `/api/route?from={nodeId}&to={nodeId}` | 쿼리 파라미터 방식 |
-
-#### POST /api/route 요청 예시
-
-```json
-{
-  "fromNodeId": "node-mn8ztuvt-pb81",
-  "toNodeId": "node-mn91s0re-dmpv"
-}
+```
+GET /api/route?from=21223&to=21517
 ```
 
-#### 응답 예시
+#### 응답 형식
 
 ```json
 {
   "found": true,
-  "totalDistance": 45.2,
-  "path": [
-    { "id": "node-mn8ztuvt-pb81", "level": 1, "type": "corridor", ... },
-    { "id": "node-mn91s0re-dmpv", "level": 1, "type": "room", "label": "21223", ... }
-  ],
+  "path": ["node-abc", "node-def", "node-ghi"],
   "edges": [
-    { "id": "...", "from": "...", "to": "...", "weight": 45.2, "videoFwd": "eng1_corridor_23_1F_cw.mp4", ... }
-  ]
+    {
+      "from": "node-abc",
+      "to": "node-def",
+      "video": "eng1_corridor_23_1F_cw.mp4",
+      "videoStart": 5000,
+      "videoEnd": 27000,
+      "duration": 22.0
+    }
+  ],
+  "totalDistance": 45.2,
+  "estimatedTime": "약 1분"
 }
 ```
+
+- `videoStart` / `videoEnd`: 영상 클리핑 구간 **(밀리초)**
+- `duration`: 클리핑 구간 길이 (초)
+- 경로를 찾지 못한 경우: `{ "found": false, ... }`
+
+#### 프론트엔드 연동
+
+`apiClient.ts`에서 `useMock = false`로 변경하면 바로 연동됩니다.
+
+---
+
+### 관리용 API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| `GET` | `/api/graph` | 전체 노드 + 엣지 반환 |
+| `POST` | `/api/graph/reload` | 인메모리 그래프 캐시 수동 갱신 |
+| `GET` | `/api/nodes` | 전체 노드 목록 (`?building=&level=` 필터) |
+| `GET` | `/api/nodes/{id}` | 단일 노드 조회 |
+| `GET` | `/api/nodes/search?q=21223` | 방 번호 검색 |
+| `GET` | `/api/nodes/nearby?lng=&lat=&radius=&limit=` | 반경 내 근접 노드 (PostGIS) |
 
 ---
 
@@ -177,21 +198,38 @@ curl http://localhost:8080/api/graph
 
 ```
 nav_nodes
-├── id          VARCHAR(50)   PK
-├── building    VARCHAR(20)
-├── level       INTEGER
-├── type        VARCHAR(20)   -- corridor | room | stairs | elevator | entrance
-├── label       VARCHAR(100)  -- 방 번호 (예: 21223)
-└── location    GEOMETRY(POINT, 4326)  -- WGS84 경위도 (PostGIS)
+├── id               VARCHAR(50)           PK
+├── building         VARCHAR(20)
+├── level            INTEGER
+├── type             VARCHAR(20)           corridor | room | stairs | elevator | entrance
+├── label            VARCHAR(100)          방 번호 (경로 탐색 입력값, 예: "21223")
+├── location         GEOMETRY(POINT,4326)  WGS84 경위도 (PostGIS)
+├── clip_fwd_start   BIGINT                순방향 복도 영상에서 방 문 등장 시작 (밀리초)
+├── clip_fwd_end     BIGINT                순방향 복도 영상에서 방 문 통과 완료 (밀리초)
+├── clip_rev_start   BIGINT                역방향 복도 영상에서 방 문 등장 시작 (밀리초)
+└── clip_rev_end     BIGINT                역방향 복도 영상에서 방 문 통과 완료 (밀리초)
+
+    * clip_* 컬럼은 room 타입 노드에만 사용. 나머지는 NULL.
 
 nav_edges
-├── id                   VARCHAR(120)  PK
-├── from_node_id         VARCHAR(50)   FK → nav_nodes
-├── to_node_id           VARCHAR(50)   FK → nav_nodes
-├── weight               DOUBLE        -- 거리(미터)
-├── video_fwd / video_rev              -- 순방향/역방향 360° 영상 파일명
-├── video_fwd_start/end                -- 영상 타임스탬프 (초)
-└── video_fwd_exit / video_rev_exit    -- 계단·엘리베이터 진출 클립
+├── id                    VARCHAR(120)  PK
+├── from_node_id          VARCHAR(50)   FK → nav_nodes
+├── to_node_id            VARCHAR(50)   FK → nav_nodes
+├── weight                DOUBLE        거리 (미터)
+├── video_fwd             VARCHAR(200)  순방향 360° 영상 파일명
+├── video_fwd_start       BIGINT        순방향 영상 시작 (밀리초)
+├── video_fwd_end         BIGINT        순방향 영상 종료 (밀리초)
+├── video_fwd_exit        VARCHAR(200)  순방향 진출 클립 — 계단·엘리베이터 전용
+├── video_fwd_exit_start  BIGINT        순방향 진출 클립 시작 (밀리초)
+├── video_fwd_exit_end    BIGINT        순방향 진출 클립 종료 (밀리초)
+├── video_rev             VARCHAR(200)  역방향 360° 영상 파일명
+├── video_rev_start       BIGINT        역방향 영상 시작 (밀리초)
+├── video_rev_end         BIGINT        역방향 영상 종료 (밀리초)
+├── video_rev_exit        VARCHAR(200)  역방향 진출 클립 — 계단·엘리베이터 전용
+├── video_rev_exit_start  BIGINT        역방향 진출 클립 시작 (밀리초)
+└── video_rev_exit_end    BIGINT        역방향 진출 클립 종료 (밀리초)
+
+    * 모든 타임스탬프는 밀리초(ms) 단위로 통일.
 ```
 
 `nav_edges_pgr` 뷰를 통해 `pgr_dijkstra()` 등 pgRouting 함수를 직접 사용할 수 있습니다.
@@ -219,7 +257,6 @@ nav_edges
 ## 향후 작업
 
 - [ ] 프론트엔드 `graph.json` 데이터를 DB로 임포트하는 스크립트 작성
-- [ ] 방 GeoJSON 폴리곤 저장 및 `ST_Contains` 기반 위치→방 매핑 API
-- [ ] pgRouting `pgr_dijkstra()` 서버사이드 경로탐색 적용
-- [ ] JWT 기반 인증 (관리자용 그래프 편집 API)
+- [ ] pgRouting `pgr_dijkstra()` 서버사이드 경로탐색으로 전환
 - [ ] 건물 다층(3~5층) 데이터 추가 대응
+- [ ] JWT 기반 인증 (관리자용 그래프 편집 API)
