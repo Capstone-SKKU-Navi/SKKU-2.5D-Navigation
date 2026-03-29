@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SKKU Navigation Backend
 
 성균관대학교 자연과학캠퍼스 실내 내비게이션 시스템의 REST API 백엔드.
@@ -223,3 +224,6 @@ nav_edges
 - [ ] pgRouting `pgr_dijkstra()` 서버사이드 경로탐색 적용
 - [ ] JWT 기반 인증 (관리자용 그래프 편집 API)
 - [ ] 건물 다층(3~5층) 데이터 추가 대응
+=======
+# SKKU-2.5D-Navigation
+>>>>>>> 5945b3a1ac8e6c3528db586c64da634a2b058599
