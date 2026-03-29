@@ -1,0 +1,21 @@
+services:
+  db:
+    image: pgrouting/pgrouting:latest   # PostgreSQL + PostGIS + pgRouting
+    container_name: skku_nav_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: skku_nav
+      POSTGRES_USER: skku
+      POSTGRES_PASSWORD: skku1234
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skku -d skku_nav"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
