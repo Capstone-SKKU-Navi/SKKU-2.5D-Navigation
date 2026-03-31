@@ -198,38 +198,34 @@ GET /api/route?from=21223&to=21517
 
 ```
 nav_nodes
-├── id               VARCHAR(50)           PK
-├── building         VARCHAR(20)
-├── level            INTEGER
-├── type             VARCHAR(20)           corridor | room | stairs | elevator | entrance
-├── label            VARCHAR(100)          방 번호 (경로 탐색 입력값, 예: "21223")
-├── location         GEOMETRY(POINT,4326)  WGS84 경위도 (PostGIS)
-├── clip_fwd_start   BIGINT                순방향 복도 영상에서 방 문 등장 시작 (밀리초)
-├── clip_fwd_end     BIGINT                순방향 복도 영상에서 방 문 통과 완료 (밀리초)
-├── clip_rev_start   BIGINT                역방향 복도 영상에서 방 문 등장 시작 (밀리초)
-└── clip_rev_end     BIGINT                역방향 복도 영상에서 방 문 통과 완료 (밀리초)
-
-    * clip_* 컬럼은 room 타입 노드에만 사용. 나머지는 NULL.
+├── id                    VARCHAR(50)           PK
+├── building              VARCHAR(20)           건물 번호 (예 "26")
+├── level                 INTEGER               
+├── type                  VARCHAR(20)           corridor | room | stairs | elevator | entrance
+├── label                 VARCHAR(100)          방 번호 (경로 탐색 입력값, 예: "21223")
+├── location              GEOMETRY(POINT,4326)  WGS84 경위도 (PostGIS)
 
 nav_edges
-├── id                    VARCHAR(120)  PK
-├── from_node_id          VARCHAR(50)   FK → nav_nodes
-├── to_node_id            VARCHAR(50)   FK → nav_nodes
-├── weight                DOUBLE        거리 (미터)
-├── video_fwd             VARCHAR(200)  순방향 360° 영상 파일명
-├── video_fwd_start       BIGINT        순방향 영상 시작 (밀리초)
-├── video_fwd_end         BIGINT        순방향 영상 종료 (밀리초)
-├── video_fwd_exit        VARCHAR(200)  순방향 진출 클립 — 계단·엘리베이터 전용
-├── video_fwd_exit_start  BIGINT        순방향 진출 클립 시작 (밀리초)
-├── video_fwd_exit_end    BIGINT        순방향 진출 클립 종료 (밀리초)
-├── video_rev             VARCHAR(200)  역방향 360° 영상 파일명
-├── video_rev_start       BIGINT        역방향 영상 시작 (밀리초)
-├── video_rev_end         BIGINT        역방향 영상 종료 (밀리초)
-├── video_rev_exit        VARCHAR(200)  역방향 진출 클립 — 계단·엘리베이터 전용
-├── video_rev_exit_start  BIGINT        역방향 진출 클립 시작 (밀리초)
-└── video_rev_exit_end    BIGINT        역방향 진출 클립 종료 (밀리초)
+├── id                    VARCHAR(120)          PK
+├── from_node_id          VARCHAR(50)           FK → nav_nodes
+├── to_node_id            VARCHAR(50)           FK → nav_nodes
+├── weight                DOUBLE                거리 (미터)
+├── video_name            VARCHAR(200)          360° 영상 파일명
+├── video_start           BIGINT                영상 시작 (ms)
+├── video_end             BIGINT                영상 종료 (ms)
+├── video_exit            VARCHAR(200)          진출 클립 — 계단·엘리베이터 전용
+├── video_exit_start      BIGINT                진출 클립 시작 (ms)
+├── video_exit_end        BIGINT                진출 클립 종료 (ms)
+├── clip_start            BIGINT                복도 영상에서 방문 등장 시작 (ms) — 방 전용. 나머지는 NULL.
+├── clip_end              BIGINT                복도 영상에서 방문 통과 완료 (ms) — 방 전용. 나머지는 NULL.
 
     * 모든 타임스탬프는 밀리초(ms) 단위로 통일.
+
+search_history            
+├── id                    INTEGER               PK
+├── dst_node_id           VARCHAR(50)           FK → nav_nodes
+├── search_query          VARCHAR(100)          유저 검색어
+├── c_time                TIMESTAMP             검색 시간
 ```
 
 `nav_edges_pgr` 뷰를 통해 `pgr_dijkstra()` 등 pgRouting 함수를 직접 사용할 수 있습니다.

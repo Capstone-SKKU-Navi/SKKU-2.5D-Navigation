@@ -29,25 +29,28 @@ CREATE TABLE nav_edges (
     to_node_id           VARCHAR(50)  NOT NULL REFERENCES nav_nodes(id) ON DELETE CASCADE,
     weight               DOUBLE PRECISION NOT NULL,   -- 거리(미터)
 
-    -- 순방향 (from → to) 360° 비디오
-    video_fwd            VARCHAR(200),
-    video_fwd_start      DOUBLE PRECISION,
-    video_fwd_end        DOUBLE PRECISION,
-    video_fwd_exit       VARCHAR(200),               -- 계단/엘리베이터 진출 클립
-    video_fwd_exit_start DOUBLE PRECISION,
-    video_fwd_exit_end   DOUBLE PRECISION,
-
-    -- 역방향 (to → from) 360° 비디오
-    video_rev            VARCHAR(200),
-    video_rev_start      DOUBLE PRECISION,
-    video_rev_end        DOUBLE PRECISION,
-    video_rev_exit       VARCHAR(200),
-    video_rev_exit_start DOUBLE PRECISION,
-    video_rev_exit_end   DOUBLE PRECISION
+    -- (from → to) 360° 비디오
+    video_name           VARCHAR(200),
+    video_start          BIGINT,
+    video_end            BIGINT,
+    video_exit           VARCHAR(200),               -- 계단/엘리베이터 진출 클립
+    video_exit_start     BIGINT,
+    video_exit_end       BIGINT,
+    clip_start           BIGINT,                     -- 방문 클립
+    clip_end             BIGINT
 );
 
 CREATE INDEX idx_nav_edges_from ON nav_edges (from_node_id);
 CREATE INDEX idx_nav_edges_to   ON nav_edges (to_node_id);
+
+CREATE TABLE search_history (
+    id                   SERIAL       PRIMARY KEY,
+    dst_node_id          VARCHAR(50)  NOT NULL REFERENCES nav_nodes(id) ON DELETE CASCADE,
+    search_query         VARCHAR(100) NOT NULL, -- 유저 검색어
+    c_time               TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+)
+
+CREATE INDEX idx_search_history_dst ON search_history (dst_node_id);
 
 -- ──────────────────────────────────────────────────────────────
 -- pgRouting 호환 뷰 (향후 서버사이드 Dijkstra/A* 확장용)
@@ -57,9 +60,9 @@ CREATE SEQUENCE IF NOT EXISTS nav_edges_seq;
 
 CREATE VIEW nav_edges_pgr AS
 SELECT
-    nextval('nav_edges_seq')::BIGINT AS id,
+    nextval('nav_edges_seq')::BIGINT  AS id,
     from_node_id                      AS source,
     to_node_id                        AS target,
     weight                            AS cost,
-    weight                            AS reverse_cost   -- 양방향 동일 비용
+    -1                                AS reverse_cost   -- 양방향 동일 비용
 FROM nav_edges;
