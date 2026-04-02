@@ -32,26 +32,18 @@ public class NavEdge {
     private double weight;
 
     // ── 순방향 (from → to) 비디오 ──────────────────────────────
-    @Column(length = 200)
-    private String videoFwd;
-    private Long videoFwdStart;   // 밀리초
-    private Long videoFwdEnd;     // 밀리초
+    @Column(name = "video_name", length = 200)
+    private String video;
+    private Long videoStart;   // 밀리초
+    private Long videoEnd;     // 밀리초
 
-    /** 계단/엘리베이터 진출 클립 (순방향) */
+    /** 계단/엘리베이터 진출 클립 */
     @Column(length = 200)
-    private String videoFwdExit;
-    private Long videoFwdExitStart;  // 밀리초
-    private Long videoFwdExitEnd;    // 밀리초
+    private String videoExit;
+    private Long videoExitStart;  // 밀리초
+    private Long videoExitEnd;    // 밀리초
 
-    // ── 역방향 (to → from) 비디오 ──────────────────────────────
-    @Column(length = 200)
-    private String videoRev;
-    private Long videoRevStart;   // 밀리초
-    private Long videoRevEnd;     // 밀리초
-
-    /** 계단/엘리베이터 진출 클립 (역방향) */
-    @Column(length = 200)
-    private String videoRevExit;
-    private Long videoRevExitStart;  // 밀리초
-    private Long videoRevExitEnd;    // 밀리초
+    /** 방문 노드 등장 클립 */
+    private Long clipStart;       // 밀리초
+    private Long clipEnd;         // 밀리초
 }

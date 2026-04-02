@@ -30,7 +30,7 @@ public class GraphService {
     private Map<String, NavNode> nodeMap = new HashMap<>();
     private List<NavEdge> edgeList = new ArrayList<>();
 
-    public record AdjEntry(String neighborId, NavEdge edge, boolean reversed) {}
+    public record AdjEntry(String neighborId, NavEdge edge) {}
 
     @PostConstruct
     @Transactional(readOnly = true)
@@ -44,12 +44,11 @@ public class GraphService {
         Map<String, List<AdjEntry>> newAdj = new HashMap<>();
         for (NavNode n : nodes) newAdj.put(n.getId(), new ArrayList<>());
 
-        // 엣지는 양방향으로 등록 (undirected traversal)
+        // 엣지는 단방향으로 등록 (directed traversal)
         for (NavEdge e : edges) {
             String from = e.getFromNode().getId();
             String to   = e.getToNode().getId();
-            newAdj.computeIfAbsent(from, k -> new ArrayList<>()).add(new AdjEntry(to, e, false));
-            newAdj.computeIfAbsent(to,   k -> new ArrayList<>()).add(new AdjEntry(from, e, true));
+            newAdj.computeIfAbsent(from, k -> new ArrayList<>()).add(new AdjEntry(to, e));
         }
 
         this.nodeMap   = newNodeMap;

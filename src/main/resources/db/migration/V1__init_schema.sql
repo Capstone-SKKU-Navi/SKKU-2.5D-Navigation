@@ -48,7 +48,7 @@ CREATE TABLE search_history (
     dst_node_id          VARCHAR(50)  NOT NULL REFERENCES nav_nodes(id) ON DELETE CASCADE,
     search_query         VARCHAR(100) NOT NULL, -- 유저 검색어
     c_time               TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
-)
+);
 
 CREATE INDEX idx_search_history_dst ON search_history (dst_node_id);
 
@@ -64,5 +64,5 @@ SELECT
     from_node_id                      AS source,
     to_node_id                        AS target,
     weight                            AS cost,
-    -1                                AS reverse_cost   -- 양방향 동일 비용
+    -1                                AS reverse_cost
 FROM nav_edges;

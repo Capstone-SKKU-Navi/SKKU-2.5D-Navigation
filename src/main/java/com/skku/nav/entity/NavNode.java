@@ -40,23 +40,6 @@ public class NavNode {
     @Column(columnDefinition = "geometry(Point, 4326)")
     private Point location;
 
-    // ── 영상 클리핑 타임스탬프 (room 타입 노드에만 사용) ─────────────────
-    // 인접한 복도/계단 엣지의 영상에서 이 방 문이 나타나는 구간을 초 단위로 기록한다.
-    // 순방향(fwd): 복도 영상의 cw(시계방향) 또는 from→to 방향
-    // 역방향(rev): 복도 영상의 ccw(반시계방향) 또는 to→from 방향
-
-    /** 순방향 영상: 방 문이 등장하는 시작 타임스탬프 (밀리초) */
-    private Long clipFwdStart;
-
-    /** 순방향 영상: 방 문 통과가 완료되는 타임스탬프 (밀리초) */
-    private Long clipFwdEnd;
-
-    /** 역방향 영상: 방 문이 등장하는 시작 타임스탬프 (밀리초) */
-    private Long clipRevStart;
-
-    /** 역방향 영상: 방 문 통과가 완료되는 타임스탬프 (밀리초) */
-    private Long clipRevEnd;
-
     public enum NodeType {
         corridor, room, stairs, elevator, entrance
     }

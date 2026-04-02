@@ -9,11 +9,7 @@ public record NodeDto(
         String type,
         String label,
         double longitude,
-        double latitude,
-        Long clipFwdStart,
-        Long clipFwdEnd,
-        Long clipRevStart,
-        Long clipRevEnd
+        double latitude
 ) {
     public static NodeDto from(NavNode node) {
         double lng = node.getLocation() != null ? node.getLocation().getX() : 0;
@@ -25,11 +21,7 @@ public record NodeDto(
                 node.getType().name(),
                 node.getLabel(),
                 lng,
-                lat,
-                node.getClipFwdStart(),
-                node.getClipFwdEnd(),
-                node.getClipRevStart(),
-                node.getClipRevEnd()
+                lat
         );
     }
 }

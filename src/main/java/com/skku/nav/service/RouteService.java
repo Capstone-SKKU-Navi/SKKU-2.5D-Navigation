@@ -126,15 +126,9 @@ public class RouteService {
             String  pathFrom = pathList.get(i);
             boolean forward  = e.getFromNode().getId().equals(pathFrom);
 
-            String video      = forward ? e.getVideoFwd()      : e.getVideoRev();
-            Long   videoStart = forward ? e.getVideoFwdStart()  : e.getVideoRevStart();
-            Long   videoEnd   = forward ? e.getVideoFwdEnd()    : e.getVideoRevEnd();
-
-            // 방 노드 클리핑 적용
-            NavNode fromRoomNode = nodeMap.get(pathList.get(i));
-            NavNode toRoomNode   = nodeMap.get(pathList.get(i + 1));
-            videoStart = applyRoomClip(fromRoomNode, forward, videoStart, true);
-            videoEnd   = applyRoomClip(toRoomNode,   forward, videoEnd,   false);
+            String video      = e.getVideo();
+            Long   videoStart = (e.getClipStart() != null) ? e.getClipStart() : e.getVideoStart();
+            Long   videoEnd   = (e.getClipEnd() != null) ? e.getClipEnd() : e.getVideoEnd();
 
             double durationSec = (videoStart != null && videoEnd != null)
                     ? (videoEnd - videoStart) / 1000.0 : 0;
@@ -153,19 +147,4 @@ public class RouteService {
         return new RouteResponseDto(true, pathList, routeEdges, totalDist, estimatedTime);
     }
 
-    /**
-     * 방 노드의 clip 타임스탬프로 영상 구간을 보정한다.
-     *
-     * @param node      방 노드 (room 타입이 아니면 그대로 반환)
-     * @param forward   순방향 여부
-     * @param fallback  방 노드 clip 값이 없을 때 사용할 기본값
-     * @param isStart   시작(true) 또는 종료(false) 타임스탬프 여부
-     */
-    private Long applyRoomClip(NavNode node, boolean forward, Long fallback, boolean isStart) {
-        if (node == null || node.getType() != NavNode.NodeType.room) return fallback;
-        Long clip = isStart
-                ? (forward ? node.getClipFwdStart() : node.getClipRevStart())
-                : (forward ? node.getClipFwdEnd()   : node.getClipRevEnd());
-        return clip != null ? clip : fallback;
-    }
 }
