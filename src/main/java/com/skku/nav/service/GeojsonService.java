@@ -7,11 +7,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.skku.nav.entity.GeojsonFile;
 import com.skku.nav.repository.GeojsonFileRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GeojsonService {
@@ -49,7 +51,8 @@ public class GeojsonService {
                     allFeatures.add(f);
                 }
             } catch (Exception e) {
-                // 파싱 실패한 레코드는 건너뜀
+                log.warn("GeoJSON 파싱 실패 — building={} level={} type={}: {}",
+                        gf.getBuilding(), gf.getLevel(), gf.getFileType(), e.getMessage());
             }
         }
 

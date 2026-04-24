@@ -12,9 +12,8 @@ import java.util.*;
 
 /**
  * 방 번호(label) 기반 경로 탐색 서비스.
- *
- * NOTE: 이 구현은 임시 스텁입니다.
- * 7단계에서 좌표→좌표 기반 + 수선의 발 투영 + 클립 조립 로직으로 전면 교체됩니다.
+ * GET /api/route?from={label}&to={label} 레거시 엔드포인트에서 사용.
+ * 좌표 기반 경로 탐색은 RouteBuilderService (POST /api/route) 를 사용할 것.
  */
 @Service
 @RequiredArgsConstructor
