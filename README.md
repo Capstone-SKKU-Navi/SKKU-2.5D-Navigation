@@ -6,28 +6,27 @@
 
 | 역할 | 기술 |
 |------|------|
-| 프레임워크 | Spring Boot 3.3.4 |
+| 프레임워크 | Spring Boot 3.5.14 |
 | 언어 | Java 21 |
-| 빌드 도구 | Gradle 8.10.2 (Wrapper) |
-| DB | PostgreSQL 16 + PostGIS 3.4 + pgRouting 3.6 |
-| ORM | Spring Data JPA + Hibernate Spatial |
-| DB 마이그레이션 | Flyway |
-| 컨테이너 | Docker Compose |
+| 빌드 도구 | Gradle (Wrapper) |
+| DB | PostgreSQL 16 + PostGIS 3.4 |
+| ORM | Spring Data JPA + Hibernate 6.6 Spatial |
+| DB 마이그레이션 | Flyway (V1 / V3 / V4) |
+| 컨테이너 | Docker |
 
 ---
 
-## 역할 및 구조
-
-프론트엔드는 GeoJSON 폴리곤(방·벽·충돌체)과 `graph.json`을 **로컬 정적 파일**에서 직접 로드하며, 경로 탐색도 자체 Dijkstra로 수행한다. 백엔드의 역할은 **방 번호를 입력받아 최단 경로를 계산하고 JSON으로 반환**하는 것 하나다.
+## 아키텍처
 
 ```
-프론트엔드 → GET /api/route?from=21223&to=21517 → 백엔드
-                                                      ↓
-                                          DB에서 노드/엣지 로드
-                                                      ↓
-                                          Dijkstra 최단경로 탐색
-                                                      ↓
-                                    { path, edges, totalDistance, estimatedTime }
+Frontend (TypeScript)
+  POST /api/route          → RouteBuilderService  (수선의 발 + Dijkstra + 클립 조립)
+  GET  /api/geojson/all    → GeojsonService       (GeoJSON 병합 + 속성 주입)
+  GET  /api/videos/{f}     → VideoController      (HTTP Range 스트리밍)
+  GET  /api/nodes|graph    → NodeController       (그래프 데이터 조회)
+                                    │
+                          PostgreSQL 16 + PostGIS
+                          (nav_nodes, nav_edges, geojson_files, video_files)
 ```
 
 ---
@@ -35,200 +34,167 @@
 ## 프로젝트 구조
 
 ```
-SKKU_navigation_backend/
-├── docker-compose.yaml                        # DB 컨테이너 정의
-├── build.gradle                               # 의존성 관리
-├── gradlew.bat                                # Windows Gradle wrapper
-├── gradle/wrapper/
-│   ├── gradle-wrapper.jar
-│   └── gradle-wrapper.properties
-└── src/main/
-    ├── java/com/skku/nav/
-    │   ├── SkkuNavApplication.java            # 진입점
-    │   ├── config/
-    │   │   └── WebConfig.java                 # CORS 설정 (localhost:8082 허용)
-    │   ├── entity/
-    │   │   ├── NavNode.java                   # 노드 엔티티 (PostGIS Point + clip 타임스탬프)
-    │   │   └── NavEdge.java                   # 엣지 엔티티 (360° 영상 메타데이터, ms 단위)
-    │   ├── dto/
-    │   │   ├── NodeDto.java
-    │   │   ├── EdgeDto.java
-    │   │   ├── GraphDto.java
-    │   │   ├── RouteEdgeDto.java              # 프론트엔드 RouteEdge 형식
-    │   │   └── RouteResponseDto.java          # 프론트엔드 RouteResponse 형식
-    │   ├── repository/
-    │   │   ├── NavNodeRepository.java         # label 검색, ST_DWithin 근접 쿼리
-    │   │   └── NavEdgeRepository.java
-    │   ├── service/
-    │   │   ├── GraphService.java              # 인메모리 그래프 캐시 + 인접 리스트
-    │   │   └── RouteService.java              # Dijkstra 경로 탐색 + 방 clip 적용
-    │   └── controller/
-    │       ├── NodeController.java            # 관리용 노드 조회 API
-    │       └── RouteController.java           # 핵심 경로 탐색 API
-    └── resources/
-        ├── application.yml                    # DB 연결 설정
-        └── db/migration/
-            ├── V1__init_schema.sql            # PostGIS + pgRouting 스키마
-            ├── V2__room_video_timestamps.sql  # 방 노드 clip 타임스탬프 (BIGINT, ms)
-            └── V3__edge_timestamps_to_ms.sql  # 엣지 타임스탬프 DOUBLE → BIGINT(ms) 통일
+src/main/java/com/skku/nav/
+├── controller/
+│   ├── RouteController.java       POST /api/route, GET /api/route (레거시)
+│   ├── GeojsonController.java     GET  /api/geojson/all
+│   ├── VideoController.java       GET  /api/videos/{filename}
+│   └── NodeController.java        GET  /api/nodes, /api/graph
+├── service/
+│   ├── RouteBuilderService.java   수선의 발 + 4조합 Dijkstra + 클립 조립 (핵심)
+│   ├── GraphService.java          그래프 인메모리 캐시 + 층별 엣지 그룹핑
+│   ├── GeojsonService.java        GeoJSON 병합 + _building/_level/_featureType 주입
+│   ├── VideoStreamCache.java      영상 경로/yaw 인메모리 캐시 (fileName → path/yaw)
+│   └── RouteService.java          레거시 label 기반 경로 탐색
+├── entity/
+│   ├── NavNode.java, NavEdge.java
+│   ├── GeojsonFile.java, VideoFile.java
+├── dto/
+│   ├── RouteCoord.java            {lng, lat, level}
+│   ├── ApiRouteRequestDto.java    POST /api/route 요청
+│   ├── ApiRouteResponseDto.java   POST /api/route 응답
+│   ├── ApiRouteClipDto.java       영상 클립 1개
+│   └── ...
+└── repository/
+
+src/main/resources/
+├── application.yml
+└── db/migration/
+    ├── V1__init_schema.sql                          기본 스키마 (nav_nodes, nav_edges)
+    ├── V3__schema_bidirectional_geojson_video.sql   양방향 영상 + geojson_files + video_files
+    └── V4__drop_unused_schema.sql                   미사용 search_history / nav_edges_pgr 정리
 ```
 
 ---
 
 ## 사전 요구사항
 
-- **Java 21** (JDK)
-- **Docker Desktop** (실행 중 상태여야 함)
-- `JAVA_HOME` 환경변수가 Java 21을 가리킬 것
-
-### JAVA_HOME 설정 (Windows)
-
-```powershell
-# 현재 세션 적용
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
-
-# 영구 적용 (관리자 PowerShell)
-[System.Environment]::SetEnvironmentVariable("JAVA_HOME", "C:\Program Files\Java\jdk-21", "Machine")
-```
+- **Java 21** (JDK), `JAVA_HOME` 환경변수 설정
+- **Docker Desktop** (실행 중 상태)
+- **Python 3.9+** (데이터 임포트용)
 
 ---
 
 ## 실행 방법
 
-### 1. DB 컨테이너 시작
+### 1. PostgreSQL 기동
+
+```powershell
+docker run --name skku_nav_db `
+  -e POSTGRES_DB=skku_nav -e POSTGRES_USER=skku -e POSTGRES_PASSWORD=skku1234 `
+  -p 5432:5432 -d postgis/postgis:16-3.4
+```
+
+`docker ps` 에서 `(healthy)` 확인 후 다음 단계 진행.
+
+### 2. 데이터 임포트
 
 ```powershell
 cd SKKU_navigation_backend
-docker compose up -d
+pip install psycopg2-binary
+python scripts/import_to_db.py
 ```
 
-컨테이너가 정상적으로 올라왔는지 확인:
+임포트 내용:
+- `geojson/graph.json` → `nav_nodes` 27건, `nav_edges` 20건
+- `geojson/**/*.geojson` → `geojson_files` 16건
+- 영상 디렉터리 스캔 → `video_files` 655건
 
-```powershell
-docker compose ps
-```
-
-`skku_nav_db` 상태가 `healthy`이면 준비 완료.
-
-### 2. Spring Boot 실행
+### 3. 백엔드 기동
 
 ```powershell
 .\gradlew.bat bootRun
 ```
 
-처음 실행 시 Gradle이 의존성을 다운로드하므로 **5~10분** 소요될 수 있습니다.
+기동 시 Flyway가 V1→V3→V4 마이그레이션을 자동 실행하고, `GraphService` · `VideoStreamCache` 가 DB 데이터를 인메모리에 로드합니다.
 
-다음 메시지가 나오면 정상 실행:
-
-```
-Started SkkuNavApplication in X.XXX seconds (process running for X.XXX)
-```
-
-> Spring Boot가 시작될 때 Flyway가 V1~V3 마이그레이션을 순서대로 자동 실행합니다.
-
-### 3. 동작 확인
-
-```powershell
-curl "http://localhost:8080/api/route?from=21223&to=21517"
-```
+서버: `http://localhost:8080`
 
 ---
 
 ## REST API
 
-기본 URL: `http://localhost:8080`
-
-### 핵심 API — 경로 탐색
-
-| Method | URL | 설명 |
-|--------|-----|------|
-| `GET` | `/api/route?from={방번호}&to={방번호}` | 방 번호 기반 최단경로 탐색 |
-
-#### 요청 예시
-
-```
-GET /api/route?from=21223&to=21517
-```
-
-#### 응답 형식
+### `POST /api/route` — 좌표 기반 경로 탐색 (주 API)
 
 ```json
+// 요청
+{ "from": {"lng": 126.9770, "lat": 37.2942, "level": 1},
+  "to":   {"lng": 126.9766, "lat": 37.2943, "level": 4} }
+
+// 응답 (found=true)
 {
   "found": true,
-  "path": ["node-abc", "node-def", "node-ghi"],
-  "edges": [
-    {
-      "from": "node-abc",
-      "to": "node-def",
-      "video": "eng1_corridor_23_1F_cw.mp4",
-      "videoStart": 5000,
-      "videoEnd": 27000,
-      "duration": 22.0
-    }
-  ],
-  "totalDistance": 45.2,
-  "estimatedTime": "약 1분"
+  "route": {
+    "coordinates": [[126.9770, 37.2942], ...],
+    "levels": [1, 1, 2, 4, 4],
+    "totalDistance": 56.7,
+    "estimatedTime": "약 1분",
+    "startLevel": 1, "endLevel": 4
+  },
+  "walkthrough": {
+    "clips": [
+      { "index": 0, "videoFile": "eng1_c_F1_3_cw.mp4",
+        "videoStart": 10.4, "videoEnd": 38.1, "duration": 27.7,
+        "yaw": 193.2, "level": 1, "isExitClip": false,
+        "coordStartIdx": 1, "coordEndIdx": 2,
+        "routeDistStart": 0.0, "routeDistEnd": 18.4 },
+      ...
+    ],
+    "videoStartCoordIdx": 1, "videoEndCoordIdx": 7
+  }
 }
+
+// 응답 (found=false)
+{ "found": false, "error": "경로를 찾을 수 없습니다" }
 ```
 
-- `videoStart` / `videoEnd`: 영상 클리핑 구간 **(밀리초)**
-- `duration`: 클리핑 구간 길이 (초)
-- 경로를 찾지 못한 경우: `{ "found": false, ... }`
-
-#### 프론트엔드 연동
-
-`apiClient.ts`에서 `useMock = false`로 변경하면 바로 연동됩니다.
+**알고리즘:**
+1. 입력 좌표 → 동일 층 복도 엣지에 수선의 발 투영 (층별 엣지 그룹핑으로 탐색 범위 축소)
+2. 출발/도착 엣지 endpoint 4조합 Dijkstra → 최단 경로 선택
+3. 백트래킹 제거 → 좌표/층 배열 조립
+4. 복도 클립 (부분 타임스탬프) / 계단·엘리베이터 클립 (진입+진출 쌍) 조립
+5. 소요 시간 = `ceil(totalDistance / 72 m/min)` 분
 
 ---
 
-### 관리용 API
+### `GET /api/geojson/all`
 
-| Method | URL | 설명 |
-|--------|-----|------|
-| `GET` | `/api/graph` | 전체 노드 + 엣지 반환 |
-| `POST` | `/api/graph/reload` | 인메모리 그래프 캐시 수동 갱신 |
-| `GET` | `/api/nodes` | 전체 노드 목록 (`?building=&level=` 필터) |
-| `GET` | `/api/nodes/{id}` | 단일 노드 조회 |
-| `GET` | `/api/nodes/search?q=21223` | 방 번호 검색 |
-| `GET` | `/api/nodes/nearby?lng=&lat=&radius=&limit=` | 반경 내 근접 노드 (PostGIS) |
+모든 건물 GeoJSON을 단일 FeatureCollection으로 병합. 각 Feature에 `_building`, `_level`, `_featureType` 속성 주입.
+
+현재 437개 Feature (eng1: outline 1 + 방 431 + collider 5).
+
+---
+
+### `GET /api/videos/{filename}`
+
+HTTP Range request 기반 영상 스트리밍 (`206 Partial Content`). 기동 시 655건 메타데이터를 `ConcurrentHashMap`에 캐시하여 DB 부하 없음.
+
+캐시 수동 갱신: `POST /api/videos/reload`
+
+---
+
+### `GET /api/nodes`
+
+쿼리 파라미터: `?building=eng1`, `?level=1`, `?building=eng1&level=1`
+
+### `GET /api/graph`
+
+전체 그래프 JSON (노드 + 엣지). 프론트엔드 로컬 모드에서 사용.
+
+### `GET /api/route?from={label}&to={label}` (레거시)
+
+label 기반 경로 탐색. nav_edges는 복도/계단/엘리베이터 노드만 연결하므로 room 노드 간 경로는 반환되지 않음. 좌표 기반 `POST /api/route` 사용 권장.
 
 ---
 
 ## DB 스키마
 
-```
-nav_nodes
-├── id                    VARCHAR(50)           PK
-├── building              VARCHAR(20)           건물 번호 (예 "26")
-├── level                 INTEGER               
-├── type                  VARCHAR(20)           corridor | room | stairs | elevator | entrance
-├── label                 VARCHAR(100)          방 번호 (경로 탐색 입력값, 예: "21223")
-├── location              GEOMETRY(POINT,4326)  WGS84 경위도 (PostGIS)
-
-nav_edges
-├── id                    VARCHAR(120)          PK
-├── from_node_id          VARCHAR(50)           FK → nav_nodes
-├── to_node_id            VARCHAR(50)           FK → nav_nodes
-├── weight                DOUBLE                거리 (미터)
-├── video_name            VARCHAR(200)          360° 영상 파일명
-├── video_start           BIGINT                영상 시작 (ms)
-├── video_end             BIGINT                영상 종료 (ms)
-├── video_exit            VARCHAR(200)          진출 클립 — 계단·엘리베이터 전용
-├── video_exit_start      BIGINT                진출 클립 시작 (ms)
-├── video_exit_end        BIGINT                진출 클립 종료 (ms)
-├── clip_start            BIGINT                복도 영상에서 방문 등장 시작 (ms) — 방 전용. 나머지는 NULL.
-├── clip_end              BIGINT                복도 영상에서 방문 통과 완료 (ms) — 방 전용. 나머지는 NULL.
-
-    * 모든 타임스탬프는 밀리초(ms) 단위로 통일.
-
-search_history            
-├── id                    INTEGER               PK
-├── dst_node_id           VARCHAR(50)           FK → nav_nodes
-├── search_query          VARCHAR(100)          유저 검색어
-├── c_time                TIMESTAMP             검색 시간
-```
-
-`nav_edges_pgr` 뷰를 통해 `pgr_dijkstra()` 등 pgRouting 함수를 직접 사용할 수 있습니다.
+| 테이블 | 주요 컬럼 |
+|--------|-----------|
+| `nav_nodes` | id, building, level, type, label, location (PostGIS POINT) |
+| `nav_edges` | id, from/to_node_id, weight, video_fwd/rev, video_fwd/rev_start/end (초, DOUBLE) |
+| `geojson_files` | building, level, file_type, content (JSONB) |
+| `video_files` | file_name (UNIQUE), file_path, yaw |
 
 ---
 
@@ -243,16 +209,15 @@ search_history
 
 ---
 
-## CORS
+## API 동작 확인 결과 (Spring Boot 3.5.14)
 
-프론트엔드 개발 서버(`localhost:8082`)의 요청을 허용하도록 설정되어 있습니다.
-추가 Origin이 필요하면 `WebConfig.java`에서 수정하세요.
-
----
-
-## 향후 작업
-
-- [ ] 프론트엔드 `graph.json` 데이터를 DB로 임포트하는 스크립트 작성
-- [ ] pgRouting `pgr_dijkstra()` 서버사이드 경로탐색으로 전환
-- [ ] 건물 다층(3~5층) 데이터 추가 대응
-- [ ] JWT 기반 인증 (관리자용 그래프 편집 API)
+| 엔드포인트 | 결과 |
+|---|---|
+| `GET /api/nodes` | ✅ 27건, 필터 정상 |
+| `GET /api/graph` | ✅ 노드 27, 엣지 20 |
+| `GET /api/geojson/all` | ✅ 437 features |
+| `POST /api/route` (동층) | ✅ found=true, 좌표 4개, 클립 1개 |
+| `POST /api/route` (다층 L1→L4) | ✅ found=true, 좌표 8개, 클립 4개 |
+| `POST /api/route` (범위 외) | ✅ found=false 정상 반환 |
+| `GET /api/videos/{filename}` | ✅ 206 Partial Content |
+| `GET /api/route` (레거시) | ⚠️ found=false (room 노드 미연결 — 설계상) |
