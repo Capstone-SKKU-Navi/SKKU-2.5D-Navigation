@@ -7,35 +7,47 @@ public record EdgeDto(
         String from,
         String to,
         double weight,
+        String building,
+        Integer fromLevel,
+        Integer toLevel,
 
-        String video,
-        Long videoStart,
-        Long videoEnd,
+        String videoFwd,
+        Double videoFwdStart,
+        Double videoFwdEnd,
+        String videoFwdExit,
+        Double videoFwdExitStart,
+        Double videoFwdExitEnd,
 
-        String videoExit,
-        Long videoExitStart,
-        Long videoExitEnd,
-
-        Long clipStart,
-        Long clipEnd
+        String videoRev,
+        Double videoRevStart,
+        Double videoRevEnd,
+        String videoRevExit,
+        Double videoRevExitStart,
+        Double videoRevExitEnd
 ) {
-    public static EdgeDto from(NavEdge edge) {
+    public static EdgeDto from(NavEdge e) {
         return new EdgeDto(
-                edge.getId(),
-                edge.getFromNode().getId(),
-                edge.getToNode().getId(),
-                edge.getWeight(),
+                e.getId(),
+                e.getFromNode().getId(),
+                e.getToNode().getId(),
+                e.getWeight(),
+                e.getBuilding(),
+                e.getFromLevel(),
+                e.getToLevel(),
 
-                edge.getVideo(),
-                edge.getVideoStart(),
-                edge.getVideoEnd(),
+                e.getVideoFwd(),
+                e.getVideoFwdStart(),
+                e.getVideoFwdEnd(),
+                e.getVideoFwdExit(),
+                e.getVideoFwdExitStart(),
+                e.getVideoFwdExitEnd(),
 
-                edge.getVideoExit(),
-                edge.getVideoExitStart(),
-                edge.getVideoExitEnd(),
-
-                edge.getClipStart(),
-                edge.getClipEnd()
+                e.getVideoRev(),
+                e.getVideoRevStart(),
+                e.getVideoRevEnd(),
+                e.getVideoRevExit(),
+                e.getVideoRevExitStart(),
+                e.getVideoRevExitEnd()
         );
     }
 }

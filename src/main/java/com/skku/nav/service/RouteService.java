@@ -13,25 +13,18 @@ import java.util.*;
 /**
  * 방 번호(label) 기반 경로 탐색 서비스.
  *
- * 입력: fromRoomLabel ("21223"), toRoomLabel ("21517")
- * 처리: label → 노드 조회 → Dijkstra → 경로 반환
- * 출력: 프론트엔드 RouteResponse 형식 (path, edges, totalDistance, estimatedTime)
+ * NOTE: 이 구현은 임시 스텁입니다.
+ * 7단계에서 좌표→좌표 기반 + 수선의 발 투영 + 클립 조립 로직으로 전면 교체됩니다.
  */
 @Service
 @RequiredArgsConstructor
 public class RouteService {
 
-    private static final double WALKING_SPEED_M_PER_MIN = 72.0; // 분당 72m
+    private static final double WALKING_SPEED_M_PER_MIN = 72.0;
 
     private final GraphService graphService;
     private final NavNodeRepository nodeRepository;
 
-    /**
-     * 방 번호로 경로를 탐색한다.
-     *
-     * @param fromLabel 출발 방 번호 (예: "21223")
-     * @param toLabel   도착 방 번호 (예: "21517")
-     */
     public RouteResponseDto findRouteByLabel(String fromLabel, String toLabel) {
         List<NavNode> fromNodes = nodeRepository.findByLabelContainingIgnoreCase(fromLabel);
         List<NavNode> toNodes   = nodeRepository.findByLabelContainingIgnoreCase(toLabel);
@@ -40,7 +33,6 @@ public class RouteService {
             return RouteResponseDto.notFound();
         }
 
-        // 정확히 일치하는 노드 우선 선택
         NavNode fromNode = fromNodes.stream()
                 .filter(n -> n.getLabel().equals(fromLabel)).findFirst()
                 .orElse(fromNodes.get(0));
@@ -51,9 +43,6 @@ public class RouteService {
         return findRoute(fromNode.getId(), toNode.getId());
     }
 
-    /**
-     * 노드 ID로 경로를 탐색한다 (내부용).
-     */
     public RouteResponseDto findRoute(String fromId, String toId) {
         Map<String, NavNode> nodeMap   = graphService.getNodeMap();
         Map<String, List<GraphService.AdjEntry>> adjacency = graphService.getAdjacency();
@@ -73,7 +62,6 @@ public class RouteService {
         for (String id : nodeMap.keySet()) dist.put(id, Double.MAX_VALUE);
         dist.put(fromId, 0.0);
 
-        // PQ: [cost, nodeId]
         PriorityQueue<AbstractMap.SimpleEntry<Double, String>> pq =
                 new PriorityQueue<>(Comparator.comparingDouble(AbstractMap.SimpleEntry::getKey));
         pq.offer(new AbstractMap.SimpleEntry<>(0.0, fromId));
@@ -117,21 +105,20 @@ public class RouteService {
         }
 
         // ── RouteEdgeDto 변환 ─────────────────────────────────────
-        // 방향 판별: pathIds 순서와 edge의 from/to 방향 비교
         List<String> pathList = new ArrayList<>(pathIds);
         List<RouteEdgeDto> routeEdges = new ArrayList<>();
 
         for (int i = 0; i < pathEdges.size(); i++) {
-            NavEdge e       = pathEdges.get(i);
+            NavEdge e        = pathEdges.get(i);
             String  pathFrom = pathList.get(i);
             boolean forward  = e.getFromNode().getId().equals(pathFrom);
 
-            String video      = e.getVideo();
-            Long   videoStart = (e.getClipStart() != null) ? e.getClipStart() : e.getVideoStart();
-            Long   videoEnd   = (e.getClipEnd() != null) ? e.getClipEnd() : e.getVideoEnd();
+            String video      = forward ? e.getVideoFwd()      : e.getVideoRev();
+            Double videoStart = forward ? e.getVideoFwdStart() : e.getVideoRevStart();
+            Double videoEnd   = forward ? e.getVideoFwdEnd()   : e.getVideoRevEnd();
 
             double durationSec = (videoStart != null && videoEnd != null)
-                    ? (videoEnd - videoStart) / 1000.0 : 0;
+                    ? videoEnd - videoStart : 0;
 
             routeEdges.add(new RouteEdgeDto(
                     pathList.get(i), pathList.get(i + 1),
@@ -139,12 +126,9 @@ public class RouteService {
             ));
         }
 
-        // ── 예상 시간 계산 ────────────────────────────────────────
         double totalDist = dist.get(toId);
         int minutes = (int) Math.max(1, Math.round(totalDist / WALKING_SPEED_M_PER_MIN));
-        String estimatedTime = "약 " + minutes + "분";
 
-        return new RouteResponseDto(true, pathList, routeEdges, totalDist, estimatedTime);
+        return new RouteResponseDto(true, pathList, routeEdges, totalDist, "약 " + minutes + "분");
     }
-
 }

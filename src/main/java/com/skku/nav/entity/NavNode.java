@@ -40,6 +40,10 @@ public class NavNode {
     @Column(columnDefinition = "geometry(Point, 4326)")
     private Point location;
 
+    /** stairs: 1~4, elevator: 1~2 — 물리적 유닛 식별자 */
+    @Column(name = "vertical_id")
+    private Integer verticalId;
+
     public enum NodeType {
         corridor, room, stairs, elevator, entrance
     }

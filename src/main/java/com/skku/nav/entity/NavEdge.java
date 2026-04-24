@@ -8,7 +8,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "nav_edges", indexes = {
         @Index(name = "idx_nav_edges_from", columnList = "from_node_id"),
-        @Index(name = "idx_nav_edges_to", columnList = "to_node_id")
+        @Index(name = "idx_nav_edges_to",   columnList = "to_node_id")
 })
 @Getter
 @Setter
@@ -27,23 +27,58 @@ public class NavEdge {
     @JoinColumn(name = "to_node_id", nullable = false)
     private NavNode toNode;
 
-    /** 거리(미터) — 경로 탐색 비용 */
     @Column(nullable = false)
     private double weight;
 
-    // ── 순방향 (from → to) 비디오 ──────────────────────────────
-    @Column(name = "video_name", length = 200)
-    private String video;
-    private Long videoStart;   // 밀리초
-    private Long videoEnd;     // 밀리초
+    /** 건물 코드 (from_node 기준) */
+    @Column(length = 20)
+    private String building = "";
 
-    /** 계단/엘리베이터 진출 클립 */
-    @Column(length = 200)
-    private String videoExit;
-    private Long videoExitStart;  // 밀리초
-    private Long videoExitEnd;    // 밀리초
+    /** from_node 층 */
+    @Column(name = "from_level")
+    private Integer fromLevel;
 
-    /** 방문 노드 등장 클립 */
-    private Long clipStart;       // 밀리초
-    private Long clipEnd;         // 밀리초
+    /** to_node 층 */
+    @Column(name = "to_level")
+    private Integer toLevel;
+
+    // ── 순방향 (from → to) 복도 영상 ────────────────────────────
+    @Column(name = "video_fwd", length = 200)
+    private String videoFwd;
+
+    @Column(name = "video_fwd_start")
+    private Double videoFwdStart;   // 초
+
+    @Column(name = "video_fwd_end")
+    private Double videoFwdEnd;     // 초
+
+    // ── 순방향 계단/엘리베이터 진출 클립 ─────────────────────────
+    @Column(name = "video_fwd_exit", length = 200)
+    private String videoFwdExit;
+
+    @Column(name = "video_fwd_exit_start")
+    private Double videoFwdExitStart;
+
+    @Column(name = "video_fwd_exit_end")
+    private Double videoFwdExitEnd;
+
+    // ── 역방향 (to → from) 복도 영상 ────────────────────────────
+    @Column(name = "video_rev", length = 200)
+    private String videoRev;
+
+    @Column(name = "video_rev_start")
+    private Double videoRevStart;   // 초
+
+    @Column(name = "video_rev_end")
+    private Double videoRevEnd;     // 초
+
+    // ── 역방향 계단/엘리베이터 진출 클립 ─────────────────────────
+    @Column(name = "video_rev_exit", length = 200)
+    private String videoRevExit;
+
+    @Column(name = "video_rev_exit_start")
+    private Double videoRevExitStart;
+
+    @Column(name = "video_rev_exit_end")
+    private Double videoRevExitEnd;
 }

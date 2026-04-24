@@ -26,9 +26,10 @@ public class GraphService {
     private final NavEdgeRepository edgeRepository;
 
     // 인접 리스트: nodeId → List<(neighborId, edge)>
-    private Map<String, List<AdjEntry>> adjacency = new HashMap<>();
-    private Map<String, NavNode> nodeMap = new HashMap<>();
-    private List<NavEdge> edgeList = new ArrayList<>();
+    private Map<String, List<AdjEntry>> adjacency    = new HashMap<>();
+    private Map<String, NavNode>        nodeMap      = new HashMap<>();
+    private List<NavEdge>               edgeList     = new ArrayList<>();
+    private Map<Integer, List<NavEdge>> edgesByLevel = new HashMap<>();
 
     public record AdjEntry(String neighborId, NavEdge edge) {}
 
@@ -44,23 +45,32 @@ public class GraphService {
         Map<String, List<AdjEntry>> newAdj = new HashMap<>();
         for (NavNode n : nodes) newAdj.put(n.getId(), new ArrayList<>());
 
-        // 엣지는 단방향으로 등록 (directed traversal)
+        // 양방향 등록 — Dijkstra가 fwd/rev 모두 탐색, 방향은 RouteService에서 판별
         for (NavEdge e : edges) {
             String from = e.getFromNode().getId();
             String to   = e.getToNode().getId();
             newAdj.computeIfAbsent(from, k -> new ArrayList<>()).add(new AdjEntry(to, e));
+            newAdj.computeIfAbsent(to,   k -> new ArrayList<>()).add(new AdjEntry(from, e));
         }
 
-        this.nodeMap   = newNodeMap;
-        this.adjacency = newAdj;
-        this.edgeList  = edges;
+        Map<Integer, List<NavEdge>> newEdgesByLevel = new HashMap<>();
+        for (NavEdge e : edges) {
+            int la = e.getFromNode().getLevel();
+            int lb = e.getToNode().getLevel();
+            newEdgesByLevel.computeIfAbsent(la, k -> new ArrayList<>()).add(e);
+            if (lb != la) newEdgesByLevel.computeIfAbsent(lb, k -> new ArrayList<>()).add(e);
+        }
+
+        this.nodeMap      = newNodeMap;
+        this.adjacency    = newAdj;
+        this.edgeList     = edges;
+        this.edgesByLevel = newEdgesByLevel;
     }
 
-    public Map<String, NavNode> getNodeMap() { return nodeMap; }
-
-    public Map<String, List<AdjEntry>> getAdjacency() { return adjacency; }
-
-    public List<NavEdge> getEdgeList() { return edgeList; }
+    public Map<String, NavNode>        getNodeMap()      { return nodeMap; }
+    public Map<String, List<AdjEntry>> getAdjacency()    { return adjacency; }
+    public List<NavEdge>               getEdgeList()     { return edgeList; }
+    public Map<Integer, List<NavEdge>> getEdgesByLevel() { return edgesByLevel; }
 
     @Transactional(readOnly = true)
     public GraphDto getFullGraph() {
