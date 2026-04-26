@@ -103,9 +103,14 @@ def import_graph(conn, graph: dict, bounds: dict) -> None:
         cur.executemany("""
             INSERT INTO nav_nodes (id, building, level, type, label, location, vertical_id)
             VALUES (%s, %s, %s, %s, %s, ST_GeomFromEWKT(%s), %s)
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (id) DO UPDATE SET
+                building    = EXCLUDED.building,
+                level       = EXCLUDED.level,
+                type        = EXCLUDED.type,
+                label       = EXCLUDED.label,
+                location    = EXCLUDED.location,
+                vertical_id = EXCLUDED.vertical_id
         """, node_rows)
-        inserted_nodes = cur.rowcount
 
     # ── 엣지 ──────────────────────────────────────────────────
     edge_rows = []
@@ -152,13 +157,28 @@ def import_graph(conn, graph: dict, bounds: dict) -> None:
                 %s, %s, %s,
                 %s, %s, %s
             )
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (id) DO UPDATE SET
+                weight               = EXCLUDED.weight,
+                building             = EXCLUDED.building,
+                from_level           = EXCLUDED.from_level,
+                to_level             = EXCLUDED.to_level,
+                video_fwd            = EXCLUDED.video_fwd,
+                video_fwd_start      = EXCLUDED.video_fwd_start,
+                video_fwd_end        = EXCLUDED.video_fwd_end,
+                video_fwd_exit       = EXCLUDED.video_fwd_exit,
+                video_fwd_exit_start = EXCLUDED.video_fwd_exit_start,
+                video_fwd_exit_end   = EXCLUDED.video_fwd_exit_end,
+                video_rev            = EXCLUDED.video_rev,
+                video_rev_start      = EXCLUDED.video_rev_start,
+                video_rev_end        = EXCLUDED.video_rev_end,
+                video_rev_exit       = EXCLUDED.video_rev_exit,
+                video_rev_exit_start = EXCLUDED.video_rev_exit_start,
+                video_rev_exit_end   = EXCLUDED.video_rev_exit_end
         """, edge_rows)
-        inserted_edges = cur.rowcount
 
     conn.commit()
-    print(f"  nav_nodes : {inserted_nodes}/{len(node_rows)} 건 삽입")
-    print(f"  nav_edges : {inserted_edges}/{len(edge_rows)} 건 삽입")
+    print(f"  nav_nodes : {len(node_rows)} 건 upsert")
+    print(f"  nav_edges : {len(edge_rows)} 건 upsert")
 
 # ──────────────────────────────────────────────────────────────
 # 2. geojson_files
