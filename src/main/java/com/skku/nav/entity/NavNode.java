@@ -34,6 +34,17 @@ public class NavNode {
     @Column(length = 100)
     private String label = "";
 
+    /** 방 표시 이름 — room 타입 노드에만 사용 (예: "소프트웨어학과 실험실") */
+    @Column(length = 200)
+    private String name = "";
+
+    /**
+     * 방 세부 유형 — room 타입 노드에만 사용
+     * 예: "lecture", "lab", "office", "restroom", "lounge" 등
+     */
+    @Column(name = "room_type", length = 30)
+    private String roomType = "";
+
     /**
      * WGS84 좌표 (EPSG:4326) — PostGIS POINT(longitude latitude)
      */

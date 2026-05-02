@@ -21,6 +21,19 @@ public interface NavNodeRepository extends JpaRepository<NavNode, String> {
     List<NavNode> findByLabelContainingIgnoreCase(String label);
 
     /**
+     * room 타입 노드만 label(방 번호) 또는 name(방 이름)으로 검색.
+     * /api/rooms/search 전용.
+     */
+    @Query("""
+            SELECT n FROM NavNode n
+            WHERE n.type = com.skku.nav.entity.NavNode.NodeType.room
+              AND (LOWER(n.label) LIKE LOWER(CONCAT('%', :q, '%'))
+                OR LOWER(n.name)  LIKE LOWER(CONCAT('%', :q, '%')))
+            ORDER BY n.building, n.level, n.label
+            """)
+    List<NavNode> searchRooms(@Param("q") String q);
+
+    /**
      * PostGIS ST_DWithin — 반경 내 가장 가까운 노드 탐색
      * distance 단위: 미터 (geography 캐스트 사용)
      */

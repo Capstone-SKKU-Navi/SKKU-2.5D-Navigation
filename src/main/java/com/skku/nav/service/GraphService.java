@@ -7,8 +7,9 @@ import com.skku.nav.entity.NavEdge;
 import com.skku.nav.entity.NavNode;
 import com.skku.nav.repository.NavEdgeRepository;
 import com.skku.nav.repository.NavNodeRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +34,7 @@ public class GraphService {
 
     public record AdjEntry(String neighborId, NavEdge edge) {}
 
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     @Transactional(readOnly = true)
     public void reload() {
         List<NavNode> nodes = nodeRepository.findAll();

@@ -77,11 +77,48 @@ def detect_building(lng: float, lat: float, bounds: dict) -> str:
     return ""
 
 # ──────────────────────────────────────────────────────────────
+# room 속성 조회 헬퍼
+# label(방 번호) 기준으로 각 건물·층 GeoJSON에서 name / room_type 를 가져온다.
+# ──────────────────────────────────────────────────────────────
+def build_room_props(buildings: list[str]) -> dict[str, dict]:
+    """{ label: {name, room_type} } — label 이 비어있으면 제외"""
+    props: dict[str, dict] = {}
+    for code in buildings:
+        bdir = GEOJSON_DIR / code
+        if not bdir.exists():
+            continue
+        mf = bdir / "manifest.json"
+        if not mf.exists():
+            continue
+        with open(mf, encoding="utf-8") as f:
+            levels = json.load(f).get("levels", [])
+        for level in levels:
+            room_file = bdir / f"{code}_room_L{level}.geojson"
+            if not room_file.exists():
+                continue
+            with open(room_file, encoding="utf-8") as f:
+                fc = json.load(f)
+            for feat in fc.get("features", []):
+                p = feat.get("properties") or {}
+                ref = str(p.get("ref") or "").strip()
+                if not ref:
+                    continue
+                props[ref] = {
+                    "name":      str(p.get("name")      or "").strip(),
+                    "room_type": str(p.get("room_type") or "").strip(),
+                }
+    return props
+
+
+# ──────────────────────────────────────────────────────────────
 # 1. nav_nodes + nav_edges
 # ──────────────────────────────────────────────────────────────
-def import_graph(conn, graph: dict, bounds: dict) -> None:
+def import_graph(conn, graph: dict, bounds: dict, buildings: list[str]) -> None:
     nodes = graph["nodes"]
     edges = graph["edges"]
+
+    # room 속성 사전 빌드 (label → {name, room_type})
+    room_props = build_room_props(buildings)
 
     # ── 노드 ──────────────────────────────────────────────────
     node_meta: dict[str, dict] = {}   # id → {building, level}
@@ -91,23 +128,33 @@ def import_graph(conn, graph: dict, bounds: dict) -> None:
         level = n["level"] if isinstance(n["level"], int) else n["level"][0]
         building = detect_building(lng, lat, bounds) or "eng1"
         vertical_id = n.get("verticalId")
+        label = n.get("label", "")
+
+        # room 노드라면 GeoJSON 에서 name / room_type 보충
+        rp = room_props.get(label, {}) if n["type"] == "room" else {}
+        name      = rp.get("name",      "")
+        room_type = rp.get("room_type", "")
+
         node_meta[node_id] = {"building": building, "level": level}
         node_rows.append((
             node_id, building, level,
-            n["type"], n.get("label", ""),
+            n["type"], label,
+            name, room_type,
             f"SRID=4326;POINT({lng} {lat})",
             vertical_id,
         ))
 
     with conn.cursor() as cur:
         cur.executemany("""
-            INSERT INTO nav_nodes (id, building, level, type, label, location, vertical_id)
-            VALUES (%s, %s, %s, %s, %s, ST_GeomFromEWKT(%s), %s)
+            INSERT INTO nav_nodes (id, building, level, type, label, name, room_type, location, vertical_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, ST_GeomFromEWKT(%s), %s)
             ON CONFLICT (id) DO UPDATE SET
                 building    = EXCLUDED.building,
                 level       = EXCLUDED.level,
                 type        = EXCLUDED.type,
                 label       = EXCLUDED.label,
+                name        = EXCLUDED.name,
+                room_type   = EXCLUDED.room_type,
                 location    = EXCLUDED.location,
                 vertical_id = EXCLUDED.vertical_id
         """, node_rows)
@@ -291,7 +338,7 @@ def main() -> None:
     conn = connect()
     try:
         print("[1/3] 그래프 (nodes + edges) 적재 중...")
-        import_graph(conn, graph, bounds)
+        import_graph(conn, graph, bounds, buildings)
 
         print("\n[2/3] GeoJSON 파일 적재 중...")
         import_geojson(conn, buildings)

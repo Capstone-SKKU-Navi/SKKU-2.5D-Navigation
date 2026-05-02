@@ -52,10 +52,21 @@ public class NodeController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** 방 이름/번호 검색 */
+    /** 노드 이름/번호 검색 (타입 무관) */
     @GetMapping("/nodes/search")
     public List<NodeDto> searchNodes(@RequestParam String q) {
         return nodeRepository.findByLabelContainingIgnoreCase(q)
+                .stream().map(NodeDto::from).toList();
+    }
+
+    /**
+     * 방 전용 검색 — 프론트엔드 apiRoute.ts searchRooms() 가 호출하는 엔드포인트.
+     * room 타입 노드만 반환하며, label(방 번호)과 name(방 이름) 모두 검색한다.
+     */
+    @GetMapping("/rooms/search")
+    public List<NodeDto> searchRooms(@RequestParam String q) {
+        if (q == null || q.isBlank()) return List.of();
+        return nodeRepository.searchRooms(q.trim())
                 .stream().map(NodeDto::from).toList();
     }
 
