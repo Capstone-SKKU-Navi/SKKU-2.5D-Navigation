@@ -57,8 +57,9 @@ public class RouteBuilderService {
         List<NavEdge> toEdges   = edgesByLevel.getOrDefault(to.level(),   List.of());
 
         // 1. 수선의 발 투영
-        EdgeProjection fromProj = projectOntoNearestEdge(from.lng(), from.lat(), nodeMap, fromEdges);
-        EdgeProjection toProj   = projectOntoNearestEdge(to.lng(),   to.lat(),   nodeMap, toEdges);
+        //    방(실내) endpoint 는 실외 보행로 edge 로 먼저 내려가지 않도록 실내 edge 우선.
+        EdgeProjection fromProj = projectOntoNearestEdge(from.lng(), from.lat(), nodeMap, fromEdges, from.isRoom());
+        EdgeProjection toProj   = projectOntoNearestEdge(to.lng(),   to.lat(),   nodeMap, toEdges,   to.isRoom());
         if (fromProj == null || toProj == null) return ApiRouteResponseDto.notFound();
 
         // 2. 같은 edge 위인지 확인
@@ -129,12 +130,26 @@ public class RouteBuilderService {
 
     private EdgeProjection projectOntoNearestEdge(
             double lng, double lat,
-            Map<String, NavNode> nodeMap, List<NavEdge> edgeList) {
+            Map<String, NavNode> nodeMap, List<NavEdge> edgeList, boolean preferIndoor) {
+
+        // 방 endpoint: 실내 edge 만으로 1차 투영 시도. 실내 edge 가 없으면(예: 실외에서만
+        // 접근 가능한 방) 전체 edge 로 재탐색해 경로가 끊기지 않도록 한다.
+        if (preferIndoor) {
+            EdgeProjection indoor = projectOntoNearestEdgeImpl(lng, lat, nodeMap, edgeList, true);
+            if (indoor != null) return indoor;
+        }
+        return projectOntoNearestEdgeImpl(lng, lat, nodeMap, edgeList, false);
+    }
+
+    private EdgeProjection projectOntoNearestEdgeImpl(
+            double lng, double lat,
+            Map<String, NavNode> nodeMap, List<NavEdge> edgeList, boolean indoorOnly) {
 
         EdgeProjection best     = null;
         double         bestDist = Double.MAX_VALUE;
 
         for (NavEdge edge : edgeList) {
+            if (indoorOnly && isOutsideEdge(edge)) continue;
             NavNode nA = nodeMap.get(edge.getFromNode().getId());
             NavNode nB = nodeMap.get(edge.getToNode().getId());
             if (nA == null || nB == null) continue;
@@ -575,6 +590,22 @@ public class RouteBuilderService {
 
     private static boolean isStairType(NavNode n) { return n != null && n.getType() == NavNode.NodeType.stairs; }
     private static boolean isElevType(NavNode n)  { return n != null && n.getType() == NavNode.NodeType.elevator; }
+
+    /**
+     * 실외 보행로 edge 판별. 영상 파일명이 "outside_" 로 시작하는지로 판정한다.
+     *
+     * 주의: 백엔드 import_to_db.py 는 graph.json node 의 "outside" building 태그를
+     * 보존하지 않고 bbox 로 재탐지하므로(edge.building 도 from-node 기준), building 으로는
+     * 실외를 구분할 수 없다. graph.json 의 실외 보행로 영상은 outside_{id}_{cw|ccw}.mp4
+     * 규칙을 따르므로 영상명을 신뢰한다. (계단/엘리베이터 edge 는 복도 영상이 없어 false → 실내 취급)
+     */
+    private static boolean isOutsideEdge(NavEdge e) {
+        return isOutsideVideo(e.getVideoFwd()) || isOutsideVideo(e.getVideoRev());
+    }
+
+    private static boolean isOutsideVideo(String v) {
+        return v != null && v.startsWith("outside_");
+    }
 
     private static String buildingCode(NavNode a, NavNode b) {
         if (a != null && a.getBuilding() != null && !a.getBuilding().isEmpty()) return a.getBuilding();
