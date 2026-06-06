@@ -48,7 +48,19 @@ public class RouteBuilderService {
 
     // ── 공개 진입점 ──────────────────────────────────────────────
 
+    /**
+     * 방/실내 좌표(preferIndoor=true)는 무조건 실내 corridor edge 로 진입한다.
+     * 가장 가까운 실내 edge 가 목적지와 다른 연결요소면 경로가 없는 것이므로 그대로
+     * NOTFOUND 를 반환한다 — 실외로 우회 폴백하지 않음(그래프 끊김을 숨기지 않고 노출).
+     * 단, 해당 층에 실내 edge 가 아예 없을 때만 projectOntoNearestEdge 가 전체에서
+     * 재탐색한다(투영 단계 안전망).
+     */
     public ApiRouteResponseDto findRoute(RouteCoord from, RouteCoord to) {
+        return buildRoute(from, to, from.preferIndoor(), to.preferIndoor());
+    }
+
+    private ApiRouteResponseDto buildRoute(
+            RouteCoord from, RouteCoord to, boolean preferIndoorFrom, boolean preferIndoorTo) {
         Map<String, NavNode>                     nodeMap      = graphService.getNodeMap();
         Map<Integer, List<NavEdge>>              edgesByLevel = graphService.getEdgesByLevel();
         Map<String, List<GraphService.AdjEntry>> adjacency    = graphService.getAdjacency();
@@ -57,9 +69,9 @@ public class RouteBuilderService {
         List<NavEdge> toEdges   = edgesByLevel.getOrDefault(to.level(),   List.of());
 
         // 1. 수선의 발 투영
-        //    방(실내) endpoint 는 실외 보행로 edge 로 먼저 내려가지 않도록 실내 edge 우선.
-        EdgeProjection fromProj = projectOntoNearestEdge(from.lng(), from.lat(), nodeMap, fromEdges, from.isRoom());
-        EdgeProjection toProj   = projectOntoNearestEdge(to.lng(),   to.lat(),   nodeMap, toEdges,   to.isRoom());
+        //    실내 endpoint 는 실외 보행로 edge 로 먼저 내려가지 않도록 실내 edge 우선.
+        EdgeProjection fromProj = projectOntoNearestEdge(from.lng(), from.lat(), nodeMap, fromEdges, preferIndoorFrom);
+        EdgeProjection toProj   = projectOntoNearestEdge(to.lng(),   to.lat(),   nodeMap, toEdges,   preferIndoorTo);
         if (fromProj == null || toProj == null) return ApiRouteResponseDto.notFound();
 
         // 2. 같은 edge 위인지 확인

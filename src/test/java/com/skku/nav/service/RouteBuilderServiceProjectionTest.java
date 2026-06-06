@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 /**
- * 방(isRoom=true) endpoint 의 수선의 발 투영이 실외(outside_*) edge 를 피하고
+ * 방(preferIndoor=true) endpoint 의 수선의 발 투영이 실외(outside_*) edge 를 피하고
  * 실내 corridor edge 를 선택하는지 검증.
  *
  * 시나리오 (평면 좌표로 단순화):
@@ -28,8 +28,8 @@ import static org.mockito.Mockito.*;
  *   to        Q = (8,  0.4)   →  I 로 투영
  *
  * 기대:
- *   isRoom=false → 가장 가까운 edge = O → fromProj.point 의 lat ≈ -1.0 (실외 선 위)
- *   isRoom=true  → 실내 우선 → I 선택  → fromProj.point 의 lat ≈  0.0 (실내 선 위)
+ *   preferIndoor=false → 가장 가까운 edge = O → fromProj.point 의 lat ≈ -1.0 (실외 선 위)
+ *   preferIndoor=true  → 실내 우선 → I 선택  → fromProj.point 의 lat ≈  0.0 (실내 선 위)
  *
  * fromProj.point 는 응답 coordinates[1] (= [from, fromProj, ..., toProj, to]).
  */
@@ -81,7 +81,7 @@ class RouteBuilderServiceProjectionTest {
 
     @Test
     void coordPin_picksNearestEdge_whichIsOutside() {
-        // isRoom=false → 종전 동작: 가장 가까운 edge(O, 실외) 선택
+        // preferIndoor=false → 종전 동작: 가장 가까운 edge(O, 실외) 선택
         RouteCoord from = new RouteCoord(5, -0.6, 1, false);
         RouteCoord to   = new RouteCoord(8,  0.4, 1, false);
 
@@ -94,7 +94,7 @@ class RouteBuilderServiceProjectionTest {
 
     @Test
     void room_prefersIndoorEdge_evenWhenOutsideIsCloser() {
-        // isRoom=true → 실내 우선: O 가 더 가깝지만 I(실내) 로 투영되어야 함
+        // preferIndoor=true → 실내 우선: O 가 더 가깝지만 I(실내) 로 투영되어야 함
         RouteCoord from = new RouteCoord(5, -0.6, 1, true);
         RouteCoord to   = new RouteCoord(8,  0.4, 1, false);
 
